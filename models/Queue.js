@@ -5,7 +5,7 @@ const tokenSchema = new mongoose.Schema({
   personName: String,
   status: { type: String, default: "waiting" },
   createdAt: { type: Date, default: Date.now }
-});
+}, { timestamps: true });
 
 const queueSchema = new mongoose.Schema({
   name: { type: String, required: true },

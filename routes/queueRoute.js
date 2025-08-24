@@ -77,16 +77,21 @@ router.put("/:id/tokens/:tokenId/move", async (req, res) => {
 });
 
 
-// Assign top token
+// Assign top waiting token
 router.put("/:id/assign", async (req, res) => {
   try {
     const queue = await Queue.findById(req.params.id);
-    if (!queue.tokens.length) return res.status(400).json({ msg: "Queue is empty" });
+    if (!queue) return res.status(404).json({ msg: "Queue not found" });
 
-    queue.tokens[0].status = "serving";
-    await queue.save();
+    // Find first waiting token
+    const token = queue.tokens.find(t => t.status === "waiting");
 
-    res.json(queue.tokens); // return tokens only
+    if (token) {
+      token.status = "serving";
+      await queue.save();
+    }
+
+    res.json(queue.tokens); // Always return tokens
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -105,6 +110,27 @@ router.delete("/:id/tokens/:tokenId", async (req, res) => {
 
     await queue.save();
     res.json(queue.tokens);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Complete current serving token and auto-assign next
+router.put("/:id/complete", async (req, res) => {
+  try {
+    const queue = await Queue.findById(req.params.id);
+    if (!queue) return res.status(404).json({ msg: "Queue not found" });
+
+    // Find current serving
+    const currentToken = queue.tokens.find(t => t.status === "serving");
+    if (currentToken) currentToken.status = "completed";
+
+    // Assign next waiting
+    const nextToken = queue.tokens.find(t => t.status === "waiting");
+    if (nextToken) nextToken.status = "serving";
+
+    await queue.save();
+    res.json(queue.tokens); // Always return tokens
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
