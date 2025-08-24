@@ -41,4 +41,32 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Verify Token
+router.get("/verify", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    
+    if (!token) {
+      return res.status(401).json({ msg: "No token provided" });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id).select("-password");
+    
+    if (!user) {
+      return res.status(401).json({ msg: "Invalid token" });
+    }
+
+    res.json({ user: { id: user._id, username: user.username } });
+  } catch (err) {
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({ msg: "Invalid token" });
+    }
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ msg: "Token expired" });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

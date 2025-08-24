@@ -64,7 +64,7 @@ router.put("/:id/tokens/:tokenId/move", async (req, res) => {
       [queue.tokens[index], queue.tokens[index + 1]] = [queue.tokens[index + 1], queue.tokens[index]];
     }
 
-    // 🔥 Reassign token numbers in new order
+    // 🔥 Reassign token numbers in new order (1, 2, 3, 4...)
     queue.tokens.forEach((t, i) => {
       t.tokenNumber = i + 1;
     });
@@ -83,15 +83,23 @@ router.put("/:id/assign", async (req, res) => {
     const queue = await Queue.findById(req.params.id);
     if (!queue) return res.status(404).json({ msg: "Queue not found" });
 
-    // Find first waiting token
-    const token = queue.tokens.find(t => t.status === "waiting");
-
-    if (token) {
-      token.status = "serving";
-      await queue.save();
+    // Check if there's already a token being served
+    const currentlyServing = queue.tokens.find(t => t.status === "serving");
+    if (currentlyServing) {
+      return res.status(400).json({ msg: "A token is already being served" });
     }
 
-    res.json(queue.tokens); // Always return tokens
+    // Find the first token in the queue (token #1)
+    const firstToken = queue.tokens.find(t => t.tokenNumber === 1 && t.status === "waiting");
+
+    if (!firstToken) {
+      return res.status(400).json({ msg: "No tokens waiting in queue or first token not available" });
+    }
+
+    firstToken.status = "serving";
+    await queue.save();
+
+    res.json(queue.tokens);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -103,7 +111,7 @@ router.delete("/:id/tokens/:tokenId", async (req, res) => {
     const queue = await Queue.findById(req.params.id);
     queue.tokens = queue.tokens.filter(t => t._id.toString() !== req.params.tokenId);
 
-    // Reassign token numbers
+    // Reassign token numbers in sequential order (1, 2, 3, 4...)
     queue.tokens.forEach((t, i) => {
       t.tokenNumber = i + 1;
     });
@@ -121,16 +129,26 @@ router.put("/:id/complete", async (req, res) => {
     const queue = await Queue.findById(req.params.id);
     if (!queue) return res.status(404).json({ msg: "Queue not found" });
 
-    // Find current serving
+    // Find current serving token
     const currentToken = queue.tokens.find(t => t.status === "serving");
-    if (currentToken) currentToken.status = "completed";
+    
+    if (!currentToken) {
+      return res.status(400).json({ msg: "No token currently being served" });
+    }
 
-    // Assign next waiting
-    const nextToken = queue.tokens.find(t => t.status === "waiting");
-    if (nextToken) nextToken.status = "serving";
+    // Complete the current token
+    currentToken.status = "completed";
+
+    // Find the next token in sequence (next token number)
+    const nextTokenNumber = currentToken.tokenNumber + 1;
+    const nextToken = queue.tokens.find(t => t.tokenNumber === nextTokenNumber && t.status === "waiting");
+    
+    if (nextToken) {
+      nextToken.status = "serving";
+    }
 
     await queue.save();
-    res.json(queue.tokens); // Always return tokens
+    res.json(queue.tokens);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
