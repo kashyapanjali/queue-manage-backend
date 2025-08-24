@@ -12,4 +12,6 @@ const queueSchema = new mongoose.Schema({
   tokens: [tokenSchema]
 });
 
+//exports the schema
 module.exports = mongoose.model("Queue", queueSchema);
+
